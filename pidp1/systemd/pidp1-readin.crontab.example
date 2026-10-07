@@ -1,0 +1,1 @@
+@reboot /usr/bin/python3 /home/pi/readin_server.py >/dev/null 2>&1

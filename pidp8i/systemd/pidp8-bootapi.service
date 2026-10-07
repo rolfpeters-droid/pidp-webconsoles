@@ -1,0 +1,15 @@
+# /etc/systemd/system/pidp8-bootapi.service
+[Unit]
+Description=PiDP-8/I boot-API
+After=network.target user@1000.service
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/pidp8-bootapi.py
+Restart=always
+RestartSec=3
+User=pi
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+
+[Install]
+WantedBy=multi-user.target

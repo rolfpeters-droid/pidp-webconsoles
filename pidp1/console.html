@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDP-1 — Webconsole</title>
+<style>
+  /* PDP-1 thema: blauwgrijze DEC-kast, crème panelen, P7-fosfor (blauwwitte
+     flits, groenblauwe nagloei) als accentkleuren. Familie van de amber
+     PiDP-10-console in deze repo. */
+  :root {
+    --p1-dark: #0d1216;
+    --p1-panel: rgba(229, 218, 195, 0.06);
+    --p1-panel-border: rgba(127, 180, 217, 0.22);
+    --p1-cream: #e5dac3;
+    --p1-cream-dim: #b9ad94;
+    --p1-slate: #5b6d7a;
+    --p1-blue: #7fb4d9;
+    --p1-flash: #cfe9ff;
+    --p1-glow: #6fe3b2;
+    --p1-red: #c96a5a;
+    --p1-mono: "SF Mono", "Cascadia Mono", "Fira Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background:
+      radial-gradient(circle at 18% 12%, rgba(127, 180, 217, 0.10), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(111, 227, 178, 0.07), transparent 45%),
+      var(--p1-dark);
+    color: var(--p1-cream);
+    font-family: var(--p1-mono);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+  a { color: var(--p1-blue); text-decoration: none; }
+  a:hover { color: var(--p1-flash); }
+
+  nav {
+    display: flex; align-items: center; gap: 1.5rem;
+    padding: 0.9rem 1.5rem;
+    border-bottom: 1px solid var(--p1-panel-border);
+    background: rgba(13, 18, 22, 0.85);
+  }
+  .brand { font-weight: 700; letter-spacing: 0.06em; color: var(--p1-cream); }
+  .brand span { color: var(--p1-blue); }
+  nav .spacer { flex: 1; }
+  nav a.navlink { font-size: 12px; color: var(--p1-cream-dim); }
+  nav a.navlink:hover { color: var(--p1-flash); }
+
+  header {
+    text-align: center;
+    padding: 1.6rem 1rem 0.6rem;
+  }
+  .overline {
+    font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--p1-blue); margin-bottom: 0.4rem;
+  }
+  h1 { font-size: 1.9rem; letter-spacing: 0.04em; color: #fff; }
+  .lead { color: var(--p1-cream-dim); font-size: 13px; margin-top: 0.35rem; }
+  .status {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    margin-top: 0.7rem; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--p1-cream-dim);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--p1-red); }
+  .dot.on { background: var(--p1-glow); box-shadow: 0 0 8px var(--p1-glow); }
+
+  main {
+    max-width: 1100px; margin: 0 auto; padding: 1.2rem 1.5rem 2rem;
+    display: grid; grid-template-columns: minmax(340px, 560px) 1fr;
+    gap: 1.2rem; align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--p1-panel);
+    border: 1px solid var(--p1-panel-border);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em;
+    color: var(--p1-blue); margin-bottom: 0.8rem;
+  }
+
+  /* Type 30 CRT */
+  .crt-wrap { display: flex; justify-content: center; }
+  .crt-bezel {
+    border-radius: 50%;
+    padding: 4.5%;
+    background: radial-gradient(circle at 30% 25%, #3c4a55, #1b232a 70%);
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.8), 0 4px 24px rgba(0,0,0,0.6);
+    width: 100%; max-width: 560px;
+  }
+  .crt-face {
+    border-radius: 50%; overflow: hidden;
+    background: #000;
+    box-shadow: inset 0 0 60px rgba(111, 227, 178, 0.08);
+    aspect-ratio: 1;
+  }
+  .crt-face canvas { width: 100%; height: 100%; display: block; }
+  .crt-caption {
+    text-align: center; margin-top: 0.7rem;
+    font-size: 11px; color: var(--p1-cream-dim); letter-spacing: 0.08em;
+  }
+
+  /* Programma's */
+  .prog-group { margin-bottom: 1rem; }
+  .prog-group h3 {
+    font-size: 11px; color: var(--p1-cream-dim); text-transform: uppercase;
+    letter-spacing: 0.12em; margin-bottom: 0.5rem;
+  }
+  .prog-grid { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+  button.prog {
+    font-family: var(--p1-mono); font-size: 12.5px;
+    color: var(--p1-cream);
+    background: rgba(127, 180, 217, 0.08);
+    border: 1px solid var(--p1-panel-border);
+    border-radius: 8px;
+    padding: 0.45rem 0.7rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  }
+  button.prog:hover {
+    background: rgba(127, 180, 217, 0.2);
+    border-color: var(--p1-blue);
+    transform: translateY(-1px);
+  }
+  button.prog.active {
+    background: rgba(111, 227, 178, 0.15);
+    border-color: var(--p1-glow);
+    color: var(--p1-flash);
+  }
+  button.prog .sw {
+    color: var(--p1-blue); font-size: 10.5px; margin-right: 0.4em;
+  }
+  .prog-note { font-size: 11px; color: var(--p1-cream-dim); margin-top: 0.4rem; line-height: 1.5; }
+
+  /* Typewriter */
+  .typewriter-card { grid-column: 1 / -1; }
+  .paper {
+    position: relative;
+    background: var(--p1-cream);
+    color: #2a2118;
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    font-family: var(--p1-mono);
+    font-size: 13.5px;
+    line-height: 1.5;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.25);
+    outline: none;
+    cursor: text;
+  }
+  .paper.focused { box-shadow: inset 0 2px 8px rgba(0,0,0,0.25), 0 0 0 2px var(--p1-blue); }
+  .paper .red { color: #a02818; }
+  .paper .black { color: #2a2118; }
+  /* Onzichtbaar tekstveld bovenop het papier -- alleen echte <input>/<textarea>
+     elementen roepen op mobiel het schermtoetsenbord op, een gewone div met
+     tabindex doet dat niet. De zichtbare "papier"-tekst blijft gerenderd door
+     typewriter.js via #typewriter-output; dit veld vangt alleen invoer op. */
+  .typewriter-input-capture {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    border: none; outline: none;
+    background: transparent;
+    caret-color: transparent;
+    color: transparent;
+    font-size: 16px; /* voorkomt auto-zoom op iOS bij focus */
+    padding: 0; margin: 0; resize: none;
+  }
+  .tw-bar {
+    display: flex; align-items: center; gap: 0.8rem; margin-top: 0.6rem;
+  }
+  .tw-bar .hint { font-size: 11px; color: var(--p1-cream-dim); flex: 1; }
+  button.small {
+    font-family: var(--p1-mono); font-size: 11.5px;
+    color: var(--p1-cream); background: transparent;
+    border: 1px solid var(--p1-panel-border); border-radius: 6px;
+    padding: 0.3rem 0.7rem; cursor: pointer;
+  }
+  button.small:hover { border-color: var(--p1-blue); color: var(--p1-flash); }
+
+  footer {
+    text-align: center; padding: 1rem 1rem 2rem;
+    color: var(--p1-slate); font-size: 11px;
+  }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(6, 9, 11, 0.8);
+    align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #10161a; border: 1px solid var(--p1-panel-border);
+    border-radius: 12px;
+    max-width: 640px; width: 100%; max-height: 82vh; overflow-y: auto;
+    padding: 1.4rem 1.6rem; box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    position: relative;
+  }
+  .modal-box h2 { margin: 0 0 0.8rem; color: #fff; font-size: 1.2rem; letter-spacing: 0.02em; }
+  .modal-box h3 { color: var(--p1-blue); margin: 1.1rem 0 0.4rem; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
+  .modal-box ol, .modal-box ul { padding-left: 1.2rem; line-height: 1.6; font-size: 13px; color: var(--p1-cream); }
+  .modal-box ul ul { margin-top: 0.4rem; }
+  .modal-box li { margin-bottom: 0.5rem; }
+  .modal-box code { color: var(--p1-flash); }
+  .modal-close {
+    position: absolute; top: 0.6rem; right: 0.8rem;
+    background: none; border: none; color: var(--p1-blue);
+    font-size: 24px; line-height: 1; cursor: pointer; padding: 4px;
+  }
+  .modal-close:hover { color: var(--p1-flash); }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">PDP&#8209;1 <span>webconsole</span></span>
+  <span class="spacer"></span>
+  <a class="navlink" href="#" id="help-btn">&#128214; handleiding</a>
+  <a class="navlink" href="index.html">volledig control panel</a>
+</nav>
+
+<div class="modal-overlay" id="help-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="help-close" aria-label="Sluiten">&times;</button>
+    <h2>PiDP-1 &mdash; Handleiding</h2>
+    <ol>
+      <li>Open deze pagina in je browser.</li>
+      <li>Kies een programma via de <strong>bootknoppen</strong> (o.a. Spacewar! en demo's). De knop mount de tape en geeft automatisch de READ IN-puls &mdash; je hoeft niets aan het fysieke paneel te doen.</li>
+      <li>Het beeld verschijnt op de <strong>Type 30 CRT</strong>; uitvoer op papier verschijnt op de typewriter eronder.</li>
+      <li>Voor Spacewar!: klik eerst in de pagina zodat het toetsenbord focus heeft; de vaste toetsen van de webpagina sturen de spelers aan.</li>
+      <li>Werkt het booten niet: controleer of de READ IN-service draait (poort 8090) &mdash; zonder puls blijft de tape gemount maar start er niets.</li>
+    </ol>
+    <h3>Let op</h3>
+    <ul>
+      <li>Pi Zero 2W is traag: geef een boot een paar seconden voor er punten op de CRT verschijnen.</li>
+      <li>Bij netwerk-onderbrekingen herstelt de puntenstroom zichzelf zodra de websocket opnieuw verbindt; pagina verversen mag altijd.</li>
+    </ul>
+  </div>
+</div>
+
+<header>
+  <div class="overline">Retrocomputing</div>
+  <h1>PiDP&#8209;1</h1>
+  <p class="lead">Oscar Vermeulen's PiDP&#8209;1 replica — circuitsimulatie van de DEC PDP&#8209;1 (1959) op een Pi Zero 2W.</p>
+  <span class="status"><span class="dot" id="statusDot"></span> <span id="statusText">verbinden&hellip;</span></span>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Type 30 CRT</h2>
+    <div class="crt-wrap">
+      <div class="crt-bezel">
+        <div class="crt-face"><canvas id="display" width="512" height="512"></canvas></div>
+      </div>
+    </div>
+    <div class="crt-caption">P7-fosfor &middot; blauwwitte flits, groene nagloei</div>
+  </section>
+
+  <section class="card">
+    <h2>Programma's</h2>
+    <div class="prog-group">
+      <h3>Games</h3>
+      <div class="prog-grid">
+        <button class="prog" data-tape="spacewar48.rim"><span class="sw">02</span>Spacewar!</button>
+        <button class="prog" data-tape="spacewar2B_5.rim"><span class="sw">06</span>Spacewar 2B</button>
+        <button class="prog" data-tape="pong.rim"><span class="sw">03</span>Pong</button>
+        <button class="prog" data-tape="lunar_lander.rim">Lunar Lander</button>
+      </div>
+    </div>
+    <div class="prog-group">
+      <h3>Demo's</h3>
+      <div class="prog-grid">
+        <button class="prog" data-tape="minskytron.rim"><span class="sw">20</span>Minskytron</button>
+        <button class="prog" data-tape="munch.rim"><span class="sw">40</span>Munching Squares</button>
+        <button class="prog" data-tape="snowflake_sa-100.bin"><span class="sw">30</span>Snowflake</button>
+        <button class="prog" data-tape="circle.rim"><span class="sw">60</span>Circle</button>
+        <button class="prog" data-tape="et.rim"><span class="sw">41</span>E.T.</button>
+        <button class="prog" data-tape="mapes.rim"><span class="sw">50</span>Mapes</button>
+        <button class="prog" data-tape="dpys5-demo.rim"><span class="sw">10</span>DPYS5-demo</button>
+        <button class="prog" data-tape="BLINKY-1_V2_WITH_HELP.rim"><span class="sw">01</span>Blinky</button>
+      </div>
+    </div>
+    <div class="prog-group">
+      <h3>Software <span style="text-transform:none">(via de typewriter)</span></h3>
+      <div class="prog-grid">
+        <button class="prog" data-tape="lisp.rim"><span class="sw">44</span>LISP</button>
+        <button class="prog" data-tape="ddt.rim"><span class="sw">43</span>DDT</button>
+        <button class="prog" data-tape="macro.rim"><span class="sw">42</span>MACRO</button>
+      </div>
+    </div>
+    <div class="prog-note">
+      Een klik doet een read&#8209;in van de papertape (zoals de sense&#8209;switches
+      <span style="color:var(--p1-blue)">nn</span> + READ&nbsp;IN op het echte paneel) en start het programma.
+      Het front panel van de PiDP&#8209;1 zelf blijft gewoon meelopen.
+    </div>
+  </section>
+
+  <section class="card typewriter-card">
+    <h2>Soroban typewriter</h2>
+    <div id="typewriter" class="paper"><pre id="typewriter-output" style="font-family:inherit; white-space:pre-wrap"></pre><textarea id="typewriter-input" class="typewriter-input-capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="PDP-1 typewriter-invoer"></textarea></div>
+    <div class="tw-bar">
+      <span class="hint">Klik op het papier en typ — invoer gaat rechtstreeks naar de PDP&#8209;1. Rood/zwart lint wordt weergegeven.</span>
+      <button class="small" onclick="typewriter.clear()">Wis papier</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  PiDP&#8209;1 &middot; Raspberry Pi Zero 2W &middot; onderdeel van de <a href="https://github.com/">PiDP webconsole collection</a> &#128736;
+</footer>
+
+<script src="p7sim.js"></script>
+<script src="typewriter.js"></script>
+<script>
+let ws = null;
+let display = null;
+let typewriter = null;
+let dpy_connected = false;
+
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+
+function setStatus(on, text) {
+  statusDot.classList.toggle('on', on);
+  statusText.textContent = text;
+}
+
+function connectWS() {
+  // location.host i.p.v. hardcoded :8080 — werkt ook via de forward op de AI-Server
+  ws = new WebSocket(`ws://${location.host}/ws`);
+
+  ws.onopen = () => {
+    setStatus(true, 'verbonden');
+    ws.send(JSON.stringify({ type: 'connect_dpy' }));
+    ws.send(JSON.stringify({ type: 'cmd', cmd: 'muldiv on' }));
+  };
+  ws.onmessage = (ev) => handleMessage(JSON.parse(ev.data));
+  ws.onclose = () => {
+    setStatus(false, 'verbinding weg — opnieuw verbinden…');
+    dpy_connected = false;
+    setTimeout(connectWS, 1500);
+  };
+  ws.onerror = () => {};
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+  case 'points':
+    display.processIncoming(msg.points);
+    break;
+  case 'char':
+    processbyte(msg.value);
+    break;
+  case 'dpy_connected':
+    dpy_connected = true;
+    break;
+  case 'dpy_disconnected':
+    dpy_connected = false;
+    break;
+  case 'reply':
+    break;
+  default:
+    break;
+  }
+}
+
+// FIODEC/UTF-8-decodering van typewriter-output, overgenomen uit het
+// originele control panel (index.html) zodat beide pagina's identiek gedragen.
+let escstr = "";
+let utf8str = [];
+let utf8len = 0;
+let decoder = new TextDecoder();
+function leading1s(byte) {
+  let bit = 0o200, n = 0;
+  while (bit & byte) { n++; bit >>= 1; }
+  return n;
+}
+function processbyte(code) {
+  if (code == 0o33) { escstr = "\033"; return; }
+  if (escstr != "") {
+    escstr += String.fromCharCode(code);
+    if (escstr == "\033[31m") { typewriter.red(); escstr = ""; }
+    else if (escstr == "\033[39;49m") { typewriter.black(); escstr = ""; }
+    return;
+  }
+  if (code == 0o15) return;
+  let nz = leading1s(code);
+  if (nz == 0) {
+    typewriter.printchar(String.fromCharCode(code));
+  } else if (nz > 1) {
+    utf8str = [code];
+    utf8len = nz - 1;
+  } else if (nz == 1) {
+    utf8str.push(code);
+    utf8len--;
+    if (utf8len == 0)
+      typewriter.printchar(decoder.decode(new Uint8Array(utf8str)));
+  }
+}
+
+async function boot(btn) {
+  const tape = btn.dataset.tape;
+  ws.send(JSON.stringify({ type: 'cmd', cmd: 'muldiv on' }));
+  // stap 1: tape in de reader hangen
+  ws.send(JSON.stringify({ type: 'cmd', cmd: 'r /opt/pidp1/tapes/' + tape }));
+  document.querySelectorAll('button.prog').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  typewriter.clear();
+  // stap 2: READ IN-knop indrukken via de readin-service (:8090),
+  // anders blijft het vorige programma gewoon draaien
+  await new Promise(r => setTimeout(r, 400));
+  try {
+    await fetch(`http://${location.hostname}:8090/readin`);
+    setStatus(true, 'read-in: ' + btn.textContent.trim());
+  } catch (e) {
+    setStatus(true, 'read-in-service onbereikbaar');
+  }
+}
+document.querySelectorAll('button.prog').forEach(b => b.addEventListener('click', () => boot(b)));
+
+typewriter = new Typewriter(document.getElementById('typewriter'),
+    document.getElementById('typewriter-output'),
+    document.getElementById('typewriter-input'));
+display = new p7sim(document.getElementById('display'));
+connectWS();
+
+// Klikken op het papier gaf niet altijd focus (klik landt vaak op de <pre>
+// erin, niet op het element met tabindex) -- en op mobiel roept alleen een
+// echt <input>/<textarea>-element het schermtoetsenbord op, een gewone div
+// met tabindex niet. Daarom: apart onzichtbaar tekstveld (#typewriter-input)
+// bovenop het papier dat de focus/invoer opvangt.
+const typewriterEl = document.getElementById('typewriter');
+const typewriterInput = document.getElementById('typewriter-input');
+typewriterEl.addEventListener('click', () => typewriterInput.focus());
+typewriterInput.addEventListener('focus', () => typewriterEl.classList.add('focused'));
+typewriterInput.addEventListener('blur', () => typewriterEl.classList.remove('focused'));
+typewriterInput.focus();
+
+const helpModal = document.getElementById('help-modal');
+document.getElementById('help-btn').addEventListener('click', (e) => { e.preventDefault(); helpModal.classList.add('open'); });
+document.getElementById('help-close').addEventListener('click', () => helpModal.classList.remove('open'));
+helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.remove('open'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') helpModal.classList.remove('open'); });
+</script>
+</body>
+</html>

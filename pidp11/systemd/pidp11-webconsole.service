@@ -1,0 +1,15 @@
+# /etc/systemd/system/pidp11-webconsole.service
+[Unit]
+Description=PiDP-11 Web Console (FastAPI/uvicorn op :8080)
+After=network.target
+
+[Service]
+User=pi
+Group=pi
+WorkingDirectory=/opt/pidp11/webconsole
+ExecStart=/opt/pidp11/webconsole/venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

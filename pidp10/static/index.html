@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>PiDP-10 Web Console</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<style>
+  :root {
+    --amber: #ffb000;
+    --amber-dim: #7a5500;
+    --bg: #0a0a0a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--amber);
+    font-family: 'Courier New', monospace;
+    margin: 0;
+    padding: 0;
+  }
+  header {
+    border-bottom: 1px solid var(--amber-dim);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-size: 16px;
+    margin: 0;
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px var(--amber);
+  }
+  select, button {
+    background: #111;
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+    padding: 6px 10px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--amber); }
+  #status { margin-left: auto; font-size: 13px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  .dot.up { background: #3f3; box-shadow: 0 0 6px #3f3; }
+  .dot.down { background: #f33; box-shadow: 0 0 6px #f33; }
+  .tabs { display: flex; border-bottom: 1px solid var(--amber-dim); }
+  .tab {
+    padding: 8px 20px;
+    cursor: pointer;
+    border-right: 1px solid var(--amber-dim);
+    opacity: 0.6;
+  }
+  .tab.active { opacity: 1; background: #1a1200; }
+  .panel { display: none; padding: 10px; }
+  .panel.active { display: block; }
+  #terminal, #term2 { height: 70vh; }
+  #desktop-frame { width: 100%; height: 80vh; border: 1px solid var(--amber-dim); background: #000; }
+  #desktop-hint { font-size: 12px; opacity: 0.7; margin: 0 0 8px; }
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #14100a; border: 1px solid var(--amber-dim);
+    max-width: 640px; width: 100%; max-height: 82vh; overflow-y: auto;
+    padding: 22px 26px; box-shadow: 0 0 30px rgba(255,176,0,0.15);
+    position: relative;
+  }
+  .modal-box h2 { margin: 0 0 14px; text-shadow: 0 0 6px var(--amber); font-size: 18px; }
+  .modal-box h3 { color: var(--amber); margin: 20px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+  .modal-box ol, .modal-box ul { padding-left: 20px; line-height: 1.6; font-size: 13.5px; }
+  .modal-box ul ul { margin-top: 6px; }
+  .modal-box li { margin-bottom: 8px; }
+  .modal-close {
+    position: absolute; top: 10px; right: 14px;
+    background: none; border: none; color: var(--amber);
+    font-size: 24px; line-height: 1; cursor: pointer; padding: 4px;
+  }
+  .modal-close:hover { color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PiDP-10 &mdash; MIT AI Lab reconstructie</h1>
+  <select id="system-select"></select>
+  <button id="boot-btn">Boot</button>
+  <button id="stop-btn">Stop</button>
+  <button id="help-btn" title="Handleiding">&#128214; Handleiding</button>
+  <span id="status"><span class="dot down"></span>onbekend</span>
+</header>
+
+<div class="modal-overlay" id="help-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="help-close" aria-label="Sluiten">&times;</button>
+    <h2>PiDP-10 &mdash; Handleiding</h2>
+    <ol>
+      <li><strong>OS kiezen en booten:</strong> dropdown bovenin (ITS, TOPS-10, TOPS-20, WAITS), knop <strong>Boot</strong>. <strong>Stop</strong> stopt de simulator.</li>
+      <li><strong>Console-tab</strong> is de plek waar je boot-commando's intikt.</li>
+      <li><strong>ITS booten</strong> (de volgorde luistert nauw):
+        <ul>
+          <li>Op de Console-tab: <code>DSKDMP</code>, daarna <code>its</code> + Return.</li>
+          <li>De console blijft daarna stil &mdash; dat hoort zo, ITS praat tegen de Knight TV.</li>
+          <li>Tik op de Console-tab nog <code>&lt;Esc&gt;g</code> (DDT "GO") om ITS echt door te laten starten.</li>
+          <li>Open de <strong>Knight TV-tab</strong>: eerst zie je het idle "eye"-scherm ("No users").</li>
+          <li>Klik <strong>in het VNC-beeld</strong> en druk <code>Ctrl-Z</code> &rarr; <code>:LOGIN</code>-prompt verschijnt. Login gebeurt dus op de Knight TV, n&iacute;et op de console.</li>
+        </ul>
+      </li>
+      <li><strong>Speciale toetsen</strong> (F1, TOP/META/CALL): de browser kaapt kale functietoetsen. Gebruik de uitklapbare noVNC-toolbar aan de linkerrand van het beeld voor modifier-toetsen.</li>
+      <li>Beide schermen (Knight TV + Type 340) staan naast elkaar in dezelfde weergave; voor Type 340-demo's zoals <code>:minsky</code> is geen aparte tab nodig.</li>
+      <li><strong>TOPS-10 booten</strong> (twee gescheiden lijnen &mdash; niet verwarren):
+        <ul>
+          <li>Op de <strong>Console-tab</strong> (operator-lijn): <code>WHY RELOAD:</code> &rarr; <code>sa</code>, <code>DATE:</code> &rarr; bv. <code>08-16-26</code>, <code>TIME:</code> &rarr; bv. <code>1500</code>, <code>STARTUP OPTION:</code> &rarr; <code>quick</code>. Elke regel gevolgd door Enter.</li>
+          <li><code>quick</code> slaat de lange drive-per-drive vragenronde over. Zonder <code>quick</code> krijg je per drive <code>DO YOU WANT IT TO BE 1)ON-LINE, 2)OFF-LINE, OR 3)DOWN? (TYPE #)</code> &mdash; <strong>"(TYPE #)" betekent "typ een cijfer" (1/2/3)</strong>, niet het teken zelf. Voor drives die niet in de boot-config hangen: <code>3</code> (DOWN).</li>
+          <li>Na de boot-dialoog blijft de Console-tab periodieke <code>hh:mm:ss(L)/(PT)/(CP)</code>-regels met een kaal <code>*!</code>-prompt tonen &mdash; dat is de monitor die om operator-actie voor randapparatuur vraagt, <strong>geen commandoprompt</strong>. Typen daar wordt genegeerd.</li>
+          <li>Inloggen doe je op de <strong>Terminal (login)-tab</strong> (de echte gebruikerslijn). Probeer account <code>1,2</code> wachtwoord <code>failsa</code>, of demo-account <code>100,100</code> wachtwoord <code>demo1</code>.</li>
+        </ul>
+      </li>
+    </ol>
+    <h3>Let op</h3>
+    <ul>
+      <li>noVNC gebruikt <code>resize=scale</code>; werk hier niet mee als het beeld raar staat, dat is bewust zo ingesteld.</li>
+      <li>Type 340-programma's kunnen in zeldzame gevallen de hele simulator laten afsluiten. Herstel: gewoon opnieuw booten via de webinterface.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-panel="console">Console</div>
+  <div class="tab" data-panel="termpanel">Terminal (login)</div>
+  <div class="tab" data-panel="desktop">Knight TV</div>
+</div>
+
+<div id="console" class="panel active">
+  <div id="terminal"></div>
+</div>
+
+<div id="termpanel" class="panel">
+  <p id="term-hint">Gebruikerslijn (DC10, poort 2020) &mdash; hier log je in bij TOPS-10/TOPS-20, l&oacute;s van de operator-console op de Console-tab.</p>
+  <div id="term2"></div>
+</div>
+
+<div id="desktop" class="panel">
+  <p id="desktop-hint">Knight TV (interactief) &mdash; klik in het beeld om toetsenbord/muis naar ITS door te sturen.</p>
+  <iframe id="desktop-frame" title="Knight TV" allow="clipboard-read; clipboard-write"></iframe>
+</div>
+
+<script>
+const term = new Terminal({
+  theme: { background: '#0a0a0a', foreground: '#ffb000', cursor: '#ffb000' },
+  fontFamily: "'Courier New', monospace",
+  fontSize: 15,
+});
+term.open(document.getElementById('terminal'));
+
+let consoleWs = null;
+function connectConsole() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  consoleWs = new WebSocket(`${proto}://${location.host}/ws/console`);
+  consoleWs.binaryType = 'arraybuffer';
+  consoleWs.onmessage = (ev) => {
+    const bytes = new Uint8Array(ev.data);
+    term.write(new TextDecoder('latin1').decode(bytes));
+  };
+  consoleWs.onclose = () => { setTimeout(connectConsole, 3000); };
+}
+// term.onData() éénmalig registreren, buiten connectConsole() — anders stapelt
+// elke reconnect (wifi-hikje, tab op achtergrond, netwerkblip) een extra
+// listener op dezelfde term-instantie, met dubbele/meervoudige toetsaanslagen
+// tot gevolg (bug gevonden 5 augustus 2026: operator zag reeksen als "iiiitttssss").
+term.onData((data) => {
+  if (consoleWs && consoleWs.readyState === WebSocket.OPEN) consoleWs.send(data);
+});
+connectConsole();
+
+// Terminal (login)-tab: zelfde bridge-patroon als Console, maar naar de
+// DC10-gebruikerslijn (:2020, /ws/terminal) i.p.v. de operator-console
+// (:1025). Toegevoegd 16 aug 2026 -- zie handleiding-modal.
+const term2 = new Terminal({
+  theme: { background: '#0a0a0a', foreground: '#ffb000', cursor: '#ffb000' },
+  fontFamily: "'Courier New', monospace",
+  fontSize: 15,
+});
+term2.open(document.getElementById('term2'));
+
+let termWs = null;
+function connectTerminal() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  termWs = new WebSocket(`${proto}://${location.host}/ws/terminal`);
+  termWs.binaryType = 'arraybuffer';
+  termWs.onmessage = (ev) => {
+    const bytes = new Uint8Array(ev.data);
+    term2.write(new TextDecoder('latin1').decode(bytes));
+  };
+  termWs.onclose = () => { setTimeout(connectTerminal, 3000); };
+}
+term2.onData((data) => {
+  if (termWs && termWs.readyState === WebSocket.OPEN) termWs.send(data);
+});
+connectTerminal();
+
+// Knight TV: interactieve noVNC-view op wayvnc (ITS tekent naar de Knight TV,
+// niet naar de seriele console). novnc_proxy draait al op :6080, met input
+// enabled op wayvnc — hier alleen ingebed. Lazy geladen bij eerste tab-klik
+// zodat er geen VNC-sessie opgezet wordt als niemand kijkt.
+let desktopLoaded = false;
+function connectDesktop() {
+  if (desktopLoaded) return;
+  desktopLoaded = true;
+  const frame = document.getElementById('desktop-frame');
+  const params = 'autoconnect=true&resize=scale&reconnect=true&show_dot=true';
+  frame.src = `${location.protocol}//${location.hostname}:6080/vnc.html?${params}`;
+}
+
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+    if (tab.dataset.panel === 'console') term.focus();
+    if (tab.dataset.panel === 'termpanel') term2.focus();
+    if (tab.dataset.panel === 'desktop') connectDesktop();
+  });
+});
+
+async function refreshStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const el = document.getElementById('status');
+    el.innerHTML = `<span class="dot ${data.running ? 'up' : 'down'}"></span>${data.running ? (data.system || 'draait') : 'gestopt'}`;
+  } catch (e) { /* stil negeren */ }
+}
+refreshStatus();
+setInterval(refreshStatus, 5000);
+
+async function loadSystems() {
+  const res = await fetch('/api/systems');
+  const data = await res.json();
+  const sel = document.getElementById('system-select');
+  sel.innerHTML = '';
+  data.systems.forEach((s) => {
+    const opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name.toUpperCase();
+    sel.appendChild(opt);
+  });
+}
+loadSystems();
+
+document.getElementById('boot-btn').addEventListener('click', async () => {
+  const system = document.getElementById('system-select').value;
+  await fetch('/api/boot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ system }),
+  });
+  setTimeout(refreshStatus, 2000);
+});
+
+document.getElementById('stop-btn').addEventListener('click', async () => {
+  await fetch('/api/stop', { method: 'POST' });
+  setTimeout(refreshStatus, 2000);
+});
+
+const helpModal = document.getElementById('help-modal');
+document.getElementById('help-btn').addEventListener('click', () => helpModal.classList.add('open'));
+document.getElementById('help-close').addEventListener('click', () => helpModal.classList.remove('open'));
+helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.remove('open'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') helpModal.classList.remove('open'); });
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# /etc/systemd/system/pidp10-webconsole.service
+[Unit]
+Description=PiDP-10 Web Console (FastAPI/uvicorn op :8080)
+After=network.target pidp10.service pidp10-cage.service
+Wants=pidp10.service pidp10-cage.service
+
+[Service]
+User=pi
+Group=pi
+WorkingDirectory=/opt/pidp10/webconsole
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/opt/pidp10/webconsole/venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

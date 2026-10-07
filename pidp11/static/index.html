@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PiDP-11 Web Console</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<style>
+  /* PDP-11/70 paneelkleuren: zwart chassis, fuchsia + donkerrode rockers */
+  :root {
+    --fuchsia: #e0447f;
+    --fuchsia-bright: #ff5c98;
+    --maroon: #8a1f42;
+    --maroon-dark: #55152b;
+    --panel: #17090f;
+    --panel-edge: #2b1420;
+    --paper: #f0e7e0;
+    --dim: #9c8391;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: #0a0509;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--paper);
+    font-family: 'Courier New', monospace;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  /* ── BEHUIZING (bezel), zoals de VAX-console — voorkomt dat het venster
+     schermvullend loopt en houdt het scroll-/terminalgebied voorspelbaar ── */
+  .pdp-housing {
+    background: linear-gradient(160deg, #2b1420 0%, #1f0d16 50%, #17090f 100%);
+    border-radius: 12px 12px 8px 8px;
+    padding: 20px 28px 16px;
+    box-shadow:
+      0 0 0 2px var(--maroon-dark),
+      4px 6px 24px rgba(0,0,0,0.7),
+      inset 0 2px 4px rgba(255,92,152,0.08),
+      inset 0 -2px 4px rgba(0,0,0,0.3);
+    width: min(98vw, 1180px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  header {
+    border-bottom: 2px solid var(--maroon);
+    padding: 0 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .dec-logo { display: inline-flex; gap: 2px; }
+  .dec-logo span {
+    display: inline-block; width: 18px; height: 22px;
+    background: var(--maroon);
+    color: #fff; font-weight: bold; font-size: 14px;
+    line-height: 22px; text-align: center;
+    font-family: Arial, Helvetica, sans-serif; text-transform: lowercase;
+  }
+  header h1 {
+    font-size: 17px; margin: 0; letter-spacing: 1px; color: #fff;
+    font-family: Arial, Helvetica, sans-serif; font-style: italic; font-weight: bold;
+  }
+  header h1 .model { color: var(--fuchsia-bright); }
+  select, button {
+    background: #23101a;
+    color: var(--paper);
+    border: 1px solid var(--maroon);
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  select:hover, button:hover { border-color: var(--fuchsia); }
+  button.boot { background: var(--maroon); color: #fff; font-weight: bold; }
+  button.boot:hover { background: var(--fuchsia); }
+  #status { margin-left: auto; font-size: 13px; color: var(--dim); }
+  #status b { color: var(--paper); font-weight: normal; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  .dot.up { background: #ff2f7e; box-shadow: 0 0 8px #ff2f7e; }
+  .dot.down { background: #444; }
+
+  /* decoratieve switch-rij zoals het 11/70 schakelregister */
+  .switchrow { display: flex; gap: 5px; padding: 8px 16px 2px; align-items: flex-end; }
+  .sw {
+    width: 13px; height: 30px; border-radius: 3px;
+    background: linear-gradient(180deg, #b8355f, var(--maroon-dark));
+  }
+  .sw:nth-child(3n) { background: linear-gradient(180deg, #c9c2bc, #6e6862); height: 30px; }
+  .sw.up { transform: translateY(-4px); }
+  .switchrow .caption {
+    margin-left: auto; font-size: 10px; letter-spacing: 2px;
+    color: var(--dim); align-self: center; text-transform: uppercase;
+  }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--maroon); }
+  .tab {
+    padding: 8px 22px; cursor: pointer; opacity: 0.55;
+    border-right: 1px solid var(--maroon-dark);
+    font-size: 13px; letter-spacing: 1px;
+  }
+  .tab:hover { opacity: 0.85; }
+  .tab.active { opacity: 1; background: #241019; color: var(--fuchsia-bright); }
+
+  /* ── SCHERM-ASSEMBLAGE: begrensde "buis" i.p.v. losse vh-hoogte, zodat het
+     terminalvenster altijd een voorspelbare, bruikbare afmeting houdt ── */
+  .screen-asm {
+    background: #0d0308;
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow:
+      inset 0 0 30px rgba(0,0,0,0.8),
+      inset 0 0 60px rgba(0,0,0,0.4),
+      0 2px 6px rgba(0,0,0,0.5);
+    position: relative;
+  }
+  .crt-screen {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 260px);
+    min-height: 340px;
+    max-height: 640px;
+    background: #120a0e;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow:
+      0 0 20px rgba(224, 68, 127, 0.15),
+      inset 0 0 40px rgba(0,0,0,0.6);
+  }
+  /* xterm.js' eigen scrollbar zit BINNEN .xterm-viewport, dus de
+     overflow:hidden hierboven (voor de CRT-rand) clipt 'm niet weg --
+     maar de browser-default is dun/grijs en valt tegen dit donkere
+     paneel bijna niet op. Expliciet stylen zodat 'm ook echt te zien
+     en te pakken is bij het terugscrollen door een grote `cat`. */
+  .xterm-viewport {
+    scrollbar-width: auto;
+    scrollbar-color: var(--fuchsia) var(--panel);
+    /* Expliciet forceren, voor het geval xterm's eigen muis-tracking-
+       logica (zie de wheel-workaround verderop) ooit pointer-events op
+       de viewport zelf beïnvloedt -- de scrollbalk moet altijd
+       aanklikbaar/sleepbaar blijven. */
+    pointer-events: auto !important;
+  }
+  .xterm-viewport::-webkit-scrollbar {
+    width: 14px;
+  }
+  .xterm-viewport::-webkit-scrollbar-track {
+    background: var(--panel);
+  }
+  .xterm-viewport::-webkit-scrollbar-thumb {
+    background: var(--fuchsia);
+    border-radius: 6px;
+    border: 2px solid var(--panel);
+  }
+  .xterm-viewport::-webkit-scrollbar-thumb:hover {
+    background: var(--fuchsia-bright);
+  }
+  .crt-scanlines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px, transparent 2px,
+      rgba(0, 0, 0, 0.22) 2px, rgba(0, 0, 0, 0.22) 4px);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .crt-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center,
+      transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+    z-index: 3;
+    border-radius: 4px;
+  }
+
+  .panel {
+    position: absolute; inset: 8px; display: none; padding: 0; z-index: 1;
+    flex-direction: column;
+  }
+  .panel.active { display: flex; }
+  .term-box { flex: 1; min-height: 0; }
+  .hint { font-size: 11px; color: var(--dim); margin: 0 0 6px; flex-shrink: 0; }
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #17090f; border: 1px solid var(--maroon);
+    max-width: 640px; width: 100%; max-height: 82vh; overflow-y: auto;
+    padding: 22px 26px; box-shadow: 0 0 30px rgba(224,68,127,0.15);
+    position: relative;
+  }
+  .modal-box h2 { margin: 0 0 14px; color: #fff; font-size: 18px; }
+  .modal-box h3 { color: var(--fuchsia-bright); margin: 20px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+  .modal-box ol, .modal-box ul { padding-left: 20px; line-height: 1.6; font-size: 13.5px; color: var(--paper); }
+  .modal-box ul ul { margin-top: 6px; }
+  .modal-box li { margin-bottom: 8px; }
+  .modal-box code { color: var(--fuchsia-bright); }
+  .modal-close {
+    position: absolute; top: 10px; right: 14px;
+    background: none; border: none; color: var(--fuchsia-bright);
+    font-size: 24px; line-height: 1; cursor: pointer; padding: 4px;
+  }
+  .modal-close:hover { color: #fff; }
+</style>
+</head>
+<body>
+<div class="pdp-housing">
+<header>
+  <div class="dec-logo"><span>d</span><span>i</span><span>g</span><span>i</span><span>t</span><span>a</span><span>l</span></div>
+  <h1>pdp<span class="model">11/70</span> &mdash; PiDP-11</h1>
+  <select id="system-select"></select>
+  <button class="boot" id="boot-btn">BOOT</button>
+  <button id="stop-btn">STOP</button>
+  <button id="help-btn">&#128214; HANDLEIDING</button>
+  <span id="status"><span class="dot down"></span>onbekend</span>
+</header>
+
+<div class="switchrow" id="switchrow"><span class="caption">switch register</span></div>
+
+<div class="tabs">
+  <div class="tab active" data-panel="console">Console</div>
+  <div class="tab" data-panel="dz">DZ-terminal</div>
+</div>
+
+<div class="screen-asm">
+  <div class="crt-screen">
+    <div id="console" class="panel active">
+      <p class="hint">Operator-console (simh) &mdash; boot-meldingen en single-user. Gedeeld met het fysieke paneel.</p>
+      <div id="term-console" class="term-box"></div>
+    </div>
+
+    <div id="dz" class="panel">
+      <p class="hint">DZ11-terminallijn (login) &mdash; beschikbaar onder 2.11BSD en RSX-11M-Plus. Enter voor een login-prompt.</p>
+      <div id="term-dz" class="term-box"></div>
+    </div>
+    <div class="crt-scanlines"></div>
+    <div class="crt-vignette"></div>
+  </div>
+</div>
+</div><!-- .pdp-housing -->
+
+<div class="modal-overlay" id="help-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="help-close" aria-label="Sluiten">&times;</button>
+    <h2>PiDP-11 &mdash; Handleiding</h2>
+    <ol>
+      <li>Open deze pagina in je browser.</li>
+      <li><strong>OS kiezen:</strong> dropdown bovenin &mdash; 2.11BSD, RT-11, RSX-11M-Plus, RSTS/E V7, DOS-11, UNIX v1/v5/v6/v7, System III, System V, 2.11BSD+, en demo's (Blinky, Idle). Klik <strong>BOOT</strong>. De simulator herstart met het gekozen OS; het fysieke paneel doet gewoon mee.</li>
+      <li><strong>Console-tab:</strong> hier verschijnen de bootmeldingen en werk je in elk OS. Let op: gedeeld met het fysieke paneel &mdash; wat jij typt, geldt daar ook.</li>
+      <li><strong>DZ-terminal-tab:</strong> een echte login-terminal, alleen bij OS-en gemarkeerd met "&bull; DZ" (2.11BSD, 2.11BSD+, RSX-11M-Plus, RSX-11M+ BQ). Tab openen maakt verbinding; druk Enter voor de login-prompt.</li>
+      <li><strong>Boottijden:</strong> RT-11 en de kleine UNIXen zijn er in seconden; 2.11BSD(+) heeft 1&ndash;2 minuten nodig (fsck + multiuser) voordat de DZ-lijn een login-prompt geeft.</li>
+    </ol>
+    <h3>Let op</h3>
+    <ul>
+      <li>Na een boot via de webinterface verschijnt eenmalig "XDG_RUNTIME_DIR is invalid" op de console &mdash; cosmetisch, paneel en simulator werken normaal.</li>
+      <li>Een OS-wissel is een harde reset voor het draaiende OS, net als de fysieke schakelaars. 2.11BSD herstelt zichzelf met fsck; netjes afsluiten vanaf de console (<code>shutdown</code>/<code>halt</code>) is vriendelijker als er iets belangrijks draait.</li>
+      <li>De draaischakelaars op het paneel worden genegeerd zolang de sessie via de webinterface is gestart.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// decoratieve schakelaars: pseudo-willekeurig omhoog/omlaag
+const row = document.getElementById('switchrow');
+const caption = row.querySelector('.caption');
+for (let i = 0; i < 22; i++) {
+  const sw = document.createElement('div');
+  sw.className = 'sw' + ((i * 7 + 3) % 5 < 2 ? ' up' : '');
+  row.insertBefore(sw, caption);
+}
+
+const THEME = {
+  background: '#120a0e',
+  foreground: '#f0e7e0',
+  cursor: '#ff5c98',
+  selectionBackground: '#8a1f42',
+};
+
+function makeTerm(elId) {
+  const term = new Terminal({
+    theme: THEME,
+    fontFamily: "'Courier New', monospace",
+    fontSize: 15,
+    cursorBlink: true,
+    scrollback: 4000,
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById(elId));
+  fit.fit();
+
+  // Werkaround: xterm.js stuurt muiswiel-scroll standaard door als
+  // cursor-toetsen (bedoeld om door full-screen apps als `less`/`vi` te
+  // kunnen scrollen), maar dat gebeurt hier ook gewoon op een lege
+  // prompt-regel -- zichtbaar doordat er tekens/history op de prompt
+  // verschijnen i.p.v. dat de terminal scrollt. Het wiel-event hier
+  // afvangen (capture-fase, vóór xterm 'm ziet) voorkomt dat.
+  //
+  // Voor het scrollen zelf NIET rechtstreeks viewport.scrollTop zetten:
+  // xterm.js 5.x rendert de zichtbare tekst op een canvas op basis van
+  // zijn eigen interne scrollpositie (buffer.ydisp), dus scrollTop
+  // manipuleren raakt niet gegarandeerd xterm's eigen renderstatus --
+  // dat gaf hier precies het "geen tekens meer, maar scrollt ook niet"
+  // gedrag. term.scrollLines() is de ondersteunde, publieke xterm-API
+  // die wél echt door de buffer scrollt en opnieuw tekent.
+  document.getElementById(elId).addEventListener('wheel', (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const lines = Math.sign(e.deltaY) * Math.max(1, Math.round(Math.abs(e.deltaY) / 20));
+    term.scrollLines(lines);
+  }, { capture: true, passive: false });
+
+  return { term, fit };
+}
+
+const consoleT = makeTerm('term-console');
+const dzT = makeTerm('term-dz');
+
+// listeners eenmalig registreren, buiten de connect-functies — anders stapelt
+// elke reconnect een extra onData-listener op (dubbele toetsaanslagen; bug
+// eerder gezien op de PiDP-10-console, 5 aug 2026).
+let consoleWs = null, dzWs = null;
+
+consoleT.term.onData((d) => {
+  if (consoleWs && consoleWs.readyState === WebSocket.OPEN) consoleWs.send(d);
+});
+dzT.term.onData((d) => {
+  if (dzWs && dzWs.readyState === WebSocket.OPEN) dzWs.send(d);
+});
+consoleT.term.onResize(({ cols, rows }) => {
+  if (consoleWs && consoleWs.readyState === WebSocket.OPEN)
+    consoleWs.send('\x01' + JSON.stringify({ cols, rows }));
+});
+
+const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+
+function connectConsole() {
+  consoleWs = new WebSocket(`${proto}://${location.host}/ws/console`);
+  consoleWs.binaryType = 'arraybuffer';
+  consoleWs.onopen = () => {
+    consoleWs.send('\x01' + JSON.stringify({ cols: consoleT.term.cols, rows: consoleT.term.rows }));
+  };
+  consoleWs.onmessage = (ev) => {
+    consoleT.term.write(typeof ev.data === 'string' ? ev.data : new Uint8Array(ev.data));
+  };
+  consoleWs.onclose = () => { setTimeout(connectConsole, 3000); };
+}
+connectConsole();
+
+// DZ pas verbinden bij eerste tab-klik (geen lijn bezet houden als niemand kijkt)
+let dzStarted = false;
+function connectDz() {
+  dzWs = new WebSocket(`${proto}://${location.host}/ws/dz`);
+  dzWs.binaryType = 'arraybuffer';
+  dzWs.onmessage = (ev) => {
+    dzT.term.write(typeof ev.data === 'string' ? ev.data : new Uint8Array(ev.data));
+  };
+  dzWs.onclose = () => { setTimeout(() => { if (dzStarted) connectDz(); }, 3000); };
+}
+
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+    if (tab.dataset.panel === 'console') { consoleT.fit.fit(); consoleT.term.focus(); }
+    if (tab.dataset.panel === 'dz') {
+      if (!dzStarted) { dzStarted = true; connectDz(); }
+      dzT.fit.fit(); dzT.term.focus();
+    }
+  });
+});
+
+window.addEventListener('resize', () => { consoleT.fit.fit(); dzT.fit.fit(); });
+
+async function refreshStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const el = document.getElementById('status');
+    const label = data.running ? (data.system || 'draait') : 'gestopt';
+    el.innerHTML = `<span class="dot ${data.running ? 'up' : 'down'}"></span><b>${label}</b>`;
+  } catch (e) { /* stil */ }
+}
+refreshStatus();
+setInterval(refreshStatus, 5000);
+
+async function loadSystems() {
+  const res = await fetch('/api/systems');
+  const data = await res.json();
+  const sel = document.getElementById('system-select');
+  sel.innerHTML = '';
+  data.systems.forEach((s) => {
+    const opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.label + (s.dz ? ' • DZ' : '');
+    sel.appendChild(opt);
+  });
+}
+loadSystems();
+
+document.getElementById('boot-btn').addEventListener('click', async () => {
+  const system = document.getElementById('system-select').value;
+  consoleT.term.write(`\r\n[boot ${system} ...]\r\n`);
+  await fetch('/api/boot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ system }),
+  });
+  setTimeout(refreshStatus, 2000);
+});
+
+document.getElementById('stop-btn').addEventListener('click', async () => {
+  await fetch('/api/stop', { method: 'POST' });
+  setTimeout(refreshStatus, 2000);
+});
+
+const helpModal = document.getElementById('help-modal');
+document.getElementById('help-btn').addEventListener('click', () => helpModal.classList.add('open'));
+document.getElementById('help-close').addEventListener('click', () => helpModal.classList.remove('open'));
+helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.remove('open'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') helpModal.classList.remove('open'); });
+</script>
+</body>
+</html>

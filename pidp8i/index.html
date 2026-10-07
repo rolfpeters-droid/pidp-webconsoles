@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PiDP-8/i · Web Console</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --amber:      #ffaa00;
+      --amber-dim:  #a06800;
+      --amber-glow: #ffcc6688;
+      --red-led:    #ff3333;
+      --green-led:  #44ff44;
+      --panel:      #2a2a2a;
+      --panel-dark: #1a1a1a;
+      --panel-mid:  #333333;
+      --rivet:      #555;
+      --screw:      #444;
+      --bezel:      #111;
+      --crt-bg:     #050500;
+    }
+
+    html, body {
+      height: 100%;
+      background: #111;
+      font-family: 'Courier New', Courier, monospace;
+      color: var(--amber);
+      overflow: hidden;
+    }
+
+    /* ── Outer wrapper — centres the machine on screen ───────────── */
+    .machine-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 12px;
+      background:
+        radial-gradient(ellipse at center, #1a1205 0%, #0a0800 60%, #000 100%);
+    }
+
+    /* ── Main rack-panel chassis ──────────────────────────────────── */
+    .chassis {
+      width: 100%;
+      max-width: 1100px;
+      background: var(--panel-dark);
+      border: 2px solid #3a3a3a;
+      border-radius: 6px;
+      box-shadow:
+        0 0 0 1px #222,
+        0 8px 40px #000c,
+        inset 0 1px 0 #555,
+        inset 0 -1px 0 #111;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* ── Top nameplate bar ───────────────────────────────────────── */
+    .nameplate {
+      background: linear-gradient(180deg, #2e2e2e 0%, #242424 100%);
+      border-bottom: 1px solid #111;
+      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .nameplate-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* DEC "rainbow" stripe — three horizontal bars */
+    .dec-stripe {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .dec-stripe span {
+      display: block;
+      height: 4px;
+      width: 36px;
+      border-radius: 1px;
+    }
+    .dec-stripe span:nth-child(1) { background: #d63030; }
+    .dec-stripe span:nth-child(2) { background: #d6a030; }
+    .dec-stripe span:nth-child(3) { background: #3060d6; }
+
+    .nameplate-title {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
+    .nameplate-title .dec-name {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: #aaa;
+      text-transform: uppercase;
+    }
+    .nameplate-title .model-name {
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #e8e8e8;
+      text-shadow: 0 0 8px #ffffff33;
+    }
+    .nameplate-title .model-sub {
+      font-size: 9px;
+      letter-spacing: 4px;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    /* LED cluster */
+    .led-cluster {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .led-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    .led {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      position: relative;
+    }
+    .led::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      opacity: 0.4;
+    }
+    .led-power {
+      background: var(--green-led);
+      box-shadow: 0 0 6px 2px var(--green-led), 0 0 12px var(--green-led);
+      animation: pulse-green 3s ease-in-out infinite;
+    }
+    .led-power::after { background: var(--green-led); }
+
+    .led-run {
+      background: var(--amber);
+      box-shadow: 0 0 6px 2px var(--amber), 0 0 10px var(--amber-dim);
+      animation: pulse-amber 1.2s ease-in-out infinite;
+    }
+    .led-run::after { background: var(--amber); }
+
+    .led-web {
+      background: #44aaff;
+      box-shadow: 0 0 6px 2px #44aaff88;
+    }
+    .led-web::after { background: #44aaff; }
+
+    @keyframes pulse-green {
+      0%,100% { box-shadow: 0 0 6px 2px var(--green-led), 0 0 12px var(--green-led); }
+      50%      { box-shadow: 0 0 4px 1px #22cc22, 0 0 6px #22cc22; }
+    }
+    @keyframes pulse-amber {
+      0%,100% { box-shadow: 0 0 6px 2px var(--amber), 0 0 12px var(--amber-dim); opacity: 1; }
+      50%      { box-shadow: 0 0 3px 1px var(--amber-dim); opacity: 0.7; }
+    }
+
+    .led-label {
+      font-size: 7px;
+      letter-spacing: 1px;
+      color: #777;
+      text-transform: uppercase;
+    }
+
+    /* Nameplate right: connection status */
+    .conn-status {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #666;
+      text-align: right;
+    }
+    .conn-status .status-val {
+      color: var(--amber);
+      display: block;
+      font-size: 11px;
+    }
+
+    /* ── CRT bezel section ────────────────────────────────────────── */
+    .crt-section {
+      padding: 14px 18px 10px;
+      background: var(--panel);
+    }
+
+    /* Outer bezel — simulates CRT housing */
+    .crt-bezel {
+      background: #0d0d0d;
+      border: 3px solid #111;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow:
+        inset 0 2px 8px #000,
+        inset 0 -2px 6px #000,
+        0 0 0 1px #333;
+      position: relative;
+    }
+
+    /* Rivet decorations at corners */
+    .crt-bezel::before,
+    .crt-bezel::after {
+      content: '';
+      position: absolute;
+      width: 8px; height: 8px;
+      background: radial-gradient(circle, #555 30%, #333 100%);
+      border-radius: 50%;
+      border: 1px solid #222;
+      box-shadow: inset 0 1px 1px #666;
+    }
+    .crt-bezel::before { top: 6px; left: 6px; }
+    .crt-bezel::after  { top: 6px; right: 6px; }
+
+    /* The actual CRT screen area */
+    .crt-screen {
+      position: relative;
+      background: var(--crt-bg);
+      border-radius: 4px;
+      overflow: hidden;
+      /* Slight vignette */
+      box-shadow:
+        inset 0 0 60px 20px #00000088,
+        inset 0 0 0 1px #1a1a00;
+    }
+
+    /* Phosphor scanlines overlay */
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0,0,0,0.18) 2px,
+        rgba(0,0,0,0.18) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Subtle curved-screen vignette */
+    .crt-screen::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.55) 100%);
+      pointer-events: none;
+      z-index: 11;
+    }
+
+    /* The iframe containing ttyd */
+    #terminal-frame {
+      display: block;
+      width: 100%;
+      height: calc(100vh - 240px);
+      min-height: 400px;
+      border: none;
+      background: var(--crt-bg);
+      /* Phosphor glow via filter */
+      filter: sepia(0.3) saturate(1.6) hue-rotate(10deg);
+      position: relative;
+      z-index: 5;
+    }
+
+    /* ── Control strip below CRT ──────────────────────────────────── */
+    .control-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 18px;
+      background: var(--panel-dark);
+      border-top: 1px solid #222;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Retro toggle switches */
+    .toggle-btn {
+      background: linear-gradient(180deg, #3a3a3a 0%, #252525 100%);
+      border: 1px solid #555;
+      border-bottom: 2px solid #111;
+      color: #aaa;
+      font-family: 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 2px;
+      box-shadow: 0 1px 0 #666 inset;
+      transition: all 0.1s;
+    }
+    .toggle-btn:hover {
+      background: linear-gradient(180deg, #454545 0%, #303030 100%);
+      color: var(--amber);
+    }
+    .toggle-btn:active {
+      border-bottom: 1px solid #111;
+      border-top: 2px solid #111;
+      transform: translateY(1px);
+    }
+
+    /* Serial number / info strip */
+    .serial-info {
+      font-size: 9px;
+      color: #555;
+      letter-spacing: 1px;
+      text-align: center;
+      flex: 1;
+    }
+    .serial-info span { color: #666; }
+
+    /* ── Bottom status bar ────────────────────────────────────────── */
+    .status-bar {
+      background: #141414;
+      border-top: 1px solid #2a2a2a;
+      padding: 4px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 9px;
+      letter-spacing: 1px;
+      color: #555;
+      border-radius: 0 0 5px 5px;
+    }
+    .status-bar .status-left { display: flex; gap: 16px; }
+    .status-bar .status-item { display: flex; gap: 5px; }
+    .status-bar .status-item .label { color: #444; text-transform: uppercase; }
+    .status-bar .status-item .value { color: #888; }
+    #status-clock { color: #666; }
+
+    /* ── Overlay shown while connecting ──────────────────────────── */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--crt-bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      gap: 14px;
+      transition: opacity 0.6s;
+    }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .boot-text {
+      color: var(--amber);
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-align: center;
+      line-height: 2;
+      white-space: pre;
+    }
+    .boot-cursor {
+      display: inline-block;
+      width: 8px; height: 14px;
+      background: var(--amber);
+      animation: blink 0.8s step-end infinite;
+      vertical-align: bottom;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* Progress bar (retro style) */
+    .progress-track {
+      width: 280px;
+      height: 12px;
+      border: 1px solid var(--amber-dim);
+      background: #0a0800;
+      position: relative;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--amber);
+      box-shadow: 0 0 8px var(--amber);
+      width: 0;
+      animation: progress-anim 2.4s ease-out forwards;
+    }
+    @keyframes progress-anim { to { width: 100%; } }
+
+    /* ── Boot select panel (IF-switch rockers, PDP-8/I stijl) ─────── */
+    .boot-panel {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 16px;
+      background: linear-gradient(180deg, #4a1f16 0%, #3a1810 100%);
+      border-top: 2px solid #5a2a1a;
+      border-bottom: 2px solid #241008;
+    }
+    .boot-panel-label {
+      display: flex; flex-direction: column; line-height: 1.3;
+      min-width: 90px;
+    }
+    .boot-title { color: #f2e6cf; font-size: 12px; letter-spacing: 0.15em; font-weight: bold; }
+    .boot-sub   { color: #c9a184; font-size: 9px; letter-spacing: 0.12em; }
+    .boot-rockers {
+      display: flex; flex-wrap: wrap; gap: 6px; flex: 1;
+    }
+    .rocker {
+      display: flex; flex-direction: column; align-items: center;
+      border: 1px solid #241008;
+      border-radius: 4px;
+      padding: 5px 8px 4px;
+      min-width: 86px;
+      cursor: pointer;
+      font-family: inherit;
+      box-shadow: 0 2px 3px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.35);
+      transition: transform 0.1s, box-shadow 0.1s, filter 0.15s;
+    }
+    .r-cream  { background: linear-gradient(180deg, #f2e6cf 0%, #d8c9ab 100%); color: #3a1810; }
+    .r-orange { background: linear-gradient(180deg, #e8a33d 0%, #c9832a 100%); color: #3a1810; }
+    .rocker:hover { filter: brightness(1.08); }
+    .rocker:active { transform: translateY(1px); box-shadow: 0 1px 1px rgba(0,0,0,0.5); }
+    .rocker.active {
+      box-shadow: 0 0 10px 2px var(--amber-glow), inset 0 2px 4px rgba(0,0,0,0.35);
+      transform: translateY(1px);
+      outline: 1px solid var(--amber);
+    }
+    .rocker .oct { font-size: 14px; font-weight: bold; }
+    .rocker .os  { font-size: 9px; letter-spacing: 0.03em; white-space: nowrap; }
+    .boot-status {
+      min-width: 110px; text-align: right;
+      color: var(--amber); font-size: 10px; letter-spacing: 0.08em;
+    }
+
+    /* ── Responsive tweaks ────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .model-name  { font-size: 16px; }
+      .dec-name, .model-sub { display: none; }
+      #terminal-frame { height: calc(100vh - 200px); min-height: 300px; }
+      .control-strip { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ── Handleiding-modal ────────────────────────────────────────── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #191919; border: 1px solid var(--amber-dim);
+      max-width: 640px; width: 100%; max-height: 82vh; overflow-y: auto;
+      padding: 22px 26px; box-shadow: 0 0 30px rgba(255,170,0,0.15);
+      position: relative; border-radius: 4px;
+    }
+    .modal-box h2 { margin: 0 0 14px; color: var(--amber); font-size: 18px; text-shadow: 0 0 6px var(--amber-glow); }
+    .modal-box h3 { color: var(--amber); margin: 20px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+    .modal-box ol, .modal-box ul { padding-left: 20px; line-height: 1.6; font-size: 13.5px; color: #ddd; }
+    .modal-box ul ul { margin-top: 6px; }
+    .modal-box li { margin-bottom: 8px; }
+    .modal-box code { color: var(--amber); }
+    .modal-close {
+      position: absolute; top: 10px; right: 14px;
+      background: none; border: none; color: var(--amber);
+      font-size: 24px; line-height: 1; cursor: pointer; padding: 4px;
+    }
+    .modal-close:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+<div class="machine-wrapper">
+  <div class="chassis">
+
+    <!-- ── Top nameplate ── -->
+    <div class="nameplate">
+      <div class="nameplate-left">
+        <div class="dec-stripe">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="nameplate-title">
+          <span class="dec-name">Digital Equipment Corporation</span>
+          <span class="model-name">PDP-8/i</span>
+          <span class="model-sub">Programmed Data Processor</span>
+        </div>
+      </div>
+
+      <div class="led-cluster">
+        <div class="led-item">
+          <div class="led led-power"></div>
+          <span class="led-label">Power</span>
+        </div>
+        <div class="led-item">
+          <div class="led led-run" id="led-run"></div>
+          <span class="led-label">Run</span>
+        </div>
+        <div class="led-item">
+          <div class="led led-web" id="led-web"></div>
+          <span class="led-label">Web</span>
+        </div>
+      </div>
+
+      <div class="conn-status">
+        CONSOLE
+        <span class="status-val" id="conn-label">CONNECTING…</span>
+      </div>
+    </div>
+
+    <!-- ── CRT area ── -->
+    <div class="crt-section">
+      <div class="crt-bezel">
+        <div class="crt-screen">
+          <div class="scanlines"></div>
+
+          <!-- Boot / loading overlay -->
+          <div id="loading-overlay">
+            <div class="boot-text" id="boot-text"></div>
+            <div class="progress-track"><div class="progress-fill"></div></div>
+          </div>
+
+          <!-- ttyd terminal in iframe -->
+          <iframe id="terminal-frame"
+                  title="PDP-8/i Console"
+                  allowfullscreen
+                  sandbox="allow-forms allow-scripts allow-same-origin allow-popups">
+          </iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Boot select (IF-switches) ── -->
+    <div class="boot-panel">
+      <div class="boot-panel-label">
+        <span class="boot-title">BOOT&nbsp;SELECT</span>
+        <span class="boot-sub">INST&nbsp;FIELD&nbsp;0&ndash;7</span>
+      </div>
+      <div class="boot-rockers" id="boot-rockers">
+        <button class="rocker r-cream"  data-boot="0"><span class="oct">0</span><span class="os">OS/8 · RK05</span></button>
+        <button class="rocker r-orange" data-boot="1"><span class="oct">1</span><span class="os">RIM loader</span></button>
+        <button class="rocker r-cream"  data-boot="2"><span class="oct">2</span><span class="os">TSS/8</span></button>
+        <button class="rocker r-orange" data-boot="3"><span class="oct">3</span><span class="os">OS/8 · DECtape</span></button>
+        <button class="rocker r-cream"  data-boot="4"><span class="oct">4</span><span class="os">Spacewar!</span></button>
+        <button class="rocker r-orange" data-boot="5"><span class="oct">5</span><span class="os">Blinkenlights</span></button>
+        <button class="rocker r-cream"  data-boot="6"><span class="oct">6</span><span class="os">ETOS V5B</span></button>
+        <button class="rocker r-orange" data-boot="7"><span class="oct">7</span><span class="os">Default (OS/8)</span></button>
+      </div>
+      <div class="boot-status" id="boot-status">&nbsp;</div>
+    </div>
+
+    <!-- ── Control strip ── -->
+    <div class="control-strip">
+      <div class="control-group">
+        <button class="toggle-btn" onclick="reloadTerminal()">↺ RESET</button>
+        <button class="toggle-btn" onclick="toggleFullscreen()">⊞ FULL</button>
+      </div>
+      <div class="serial-info">
+        CONSOLE UNIT <span>001</span> &nbsp;·&nbsp;
+        BAUD <span>9600</span> &nbsp;·&nbsp;
+        <span id="ttyd-url-display">—</span>
+      </div>
+      <div class="control-group">
+        <button class="toggle-btn" onclick="showHelp()">? HELP</button>
+        <button class="toggle-btn" id="help-btn">&#128214; HANDLEIDING</button>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="help-modal">
+      <div class="modal-box">
+        <button class="modal-close" id="help-close" aria-label="Sluiten">&times;</button>
+        <h2>PiDP-8/I &mdash; Handleiding</h2>
+        <ol>
+          <li>Open deze pagina in je browser.</li>
+          <li>Kies een systeem met de <strong>rocker-schakelaars</strong>: OS/8 (RK05), TSS/8, ETOS, Spacewar!, Blinkenlights of de default. De keuze herstart de simulator &mdash; geef hem &plusmn;30 seconden.</li>
+          <li>Klik daarna in de amber terminal en druk Enter om de prompt te zien.
+            <ul>
+              <li><strong>OS/8:</strong> <code>.</code>-prompt; klassiekers: <code>DIR</code>, <code>BASIC</code>.</li>
+              <li><strong>TSS/8:</strong> eerst een <code>LOGIN</code>-dialoog.</li>
+            </ul>
+          </li>
+          <li>De terminal is gedeeld met het fysieke paneel: wat jij typt zie je ook daar, en andersom.</li>
+        </ol>
+        <h3>Let op</h3>
+        <ul>
+          <li>Blijft de terminal leeg of herverbindt hij in een lus? Een nieuwe boot-keuze doen ruimt oude sessies zelf op &mdash; dat is meteen de fix.</li>
+          <li>Pi 3A+ heeft maar 512 MB RAM: één browser-tab tegelijk op de console is het devies.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ── Status bar ── -->
+    <div class="status-bar">
+      <div class="status-left">
+        <div class="status-item">
+          <span class="label">System</span>
+          <span class="value">PiDP-8/i SimH</span>
+        </div>
+        <div class="status-item">
+          <span class="label">Interface</span>
+          <span class="value">Web Terminal</span>
+        </div>
+        <div class="status-item">
+          <span class="label">Host</span>
+          <span class="value" id="status-host">—</span>
+        </div>
+      </div>
+      <div id="status-clock">——:——:——</div>
+    </div>
+
+  </div><!-- .chassis -->
+</div><!-- .machine-wrapper -->
+
+<script>
+// ────────────────────────────────────────────────────────────────
+// Configuration
+// ────────────────────────────────────────────────────────────────
+const TTYD_PORT = 7681;   // Must match what ttyd is listening on
+const BOOT_DELAY_MS = 2600;
+
+// ────────────────────────────────────────────────────────────────
+// Derive the ttyd URL from the current page's hostname
+// ────────────────────────────────────────────────────────────────
+const host    = window.location.hostname || 'localhost';
+const ttydUrl = `http://${host}:${TTYD_PORT}`;
+
+document.getElementById('ttyd-url-display').textContent = `ttyd:${TTYD_PORT}`;
+document.getElementById('status-host').textContent = host;
+document.getElementById('conn-label').textContent  = 'CONNECTING…';
+
+// ────────────────────────────────────────────────────────────────
+// Animated boot sequence text
+// ────────────────────────────────────────────────────────────────
+const bootLines = [
+  'DIGITAL EQUIPMENT CORPORATION',
+  'PDP-8/I  BOOT SEQUENCE',
+  '',
+  'MEMORY SIZE: 4096 WORDS',
+  'CHECKING CORE MEMORY …… OK',
+  'INITIALISING I/O BUS …… OK',
+  'LOADING CONSOLE DRIVER …… OK',
+  'CONNECTING WEB TERMINAL …',
+];
+
+const bootEl = document.getElementById('boot-text');
+let lineIdx = 0;
+
+function typeNextLine() {
+  if (lineIdx >= bootLines.length) {
+    bootEl.innerHTML += '\n<span class="boot-cursor"></span>';
+    return;
+  }
+  bootEl.textContent += bootLines[lineIdx] + '\n';
+  lineIdx++;
+  setTimeout(typeNextLine, 180 + Math.random() * 120);
+}
+typeNextLine();
+
+// ────────────────────────────────────────────────────────────────
+// Load terminal iframe after boot animation
+// ────────────────────────────────────────────────────────────────
+const frame   = document.getElementById('terminal-frame');
+const overlay = document.getElementById('loading-overlay');
+const connLbl = document.getElementById('conn-label');
+const ledWeb  = document.getElementById('led-web');
+
+setTimeout(() => {
+  frame.src = ttydUrl;
+
+  frame.onload = () => {
+    overlay.classList.add('hidden');
+    connLbl.textContent = 'CONNECTED';
+    connLbl.style.color = '#44ff44';
+    ledWeb.style.background  = '#44ff44';
+    ledWeb.style.boxShadow   = '0 0 8px 3px #44ff44';
+  };
+
+  // Fallback: if onload doesn't fire (cross-origin), hide overlay anyway
+  setTimeout(() => overlay.classList.add('hidden'), 3000);
+
+}, BOOT_DELAY_MS);
+
+// ────────────────────────────────────────────────────────────────
+// Control buttons
+// ────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
+// Boot select — praat met de boot-API (:8091)
+// ────────────────────────────────────────────────────────────────
+const API_PORT = 8091;
+const apiUrl = `http://${host}:${API_PORT}`;
+const bootStatus = document.getElementById('boot-status');
+const OS_NAMES = ['OS/8 (RK05)', 'RIM loader', 'TSS/8', 'OS/8 (DECtape)',
+                  'Spacewar!', 'Blinkenlights', 'ETOS V5B', 'OS/8 (default)'];
+
+function markActive(n) {
+  document.querySelectorAll('.rocker').forEach(b =>
+    b.classList.toggle('active', b.dataset.boot === String(n)));
+}
+
+async function refreshBootStatus() {
+  try {
+    const r = await fetch(`${apiUrl}/api/status`);
+    const s = await r.json();
+    if (s.script !== null) markActive(s.script);
+    bootStatus.textContent = s.running ? 'SIM RUNNING' : 'SIM HALTED';
+  } catch (e) {
+    bootStatus.textContent = 'API —';
+  }
+}
+
+async function bootSelect(n) {
+  bootStatus.textContent = 'BOOTING ' + OS_NAMES[n] + '…';
+  overlay.classList.remove('hidden');
+  connLbl.textContent = 'REBOOTING…';
+  connLbl.style.color = '';
+  // iframe eerst loskoppelen, anders blijft de oude ttyd-client tijdens de
+  // wissel reconnecten ("reconnecting"-geflikker) en houdt hij client-slots bezet
+  frame.src = 'about:blank';
+  try {
+    const r = await fetch(`${apiUrl}/api/boot/${n}`);
+    if (!r.ok) throw new Error('boot faalde');
+    markActive(n);
+    // sim, screen-sessie én ttyd zijn net herstart: vers verbinden
+    setTimeout(() => {
+      frame.src = ttydUrl + '?' + Date.now();
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+        connLbl.textContent = 'CONNECTED';
+        connLbl.style.color = '#44ff44';
+        refreshBootStatus();
+      }, 2500);
+    }, 3000);
+  } catch (e) {
+    bootStatus.textContent = 'BOOT ERROR';
+    overlay.classList.add('hidden');
+  }
+}
+
+document.querySelectorAll('.rocker').forEach(b =>
+  b.addEventListener('click', () => bootSelect(b.dataset.boot)));
+refreshBootStatus();
+setInterval(refreshBootStatus, 15000);
+
+function reloadTerminal() {
+  overlay.classList.remove('hidden');
+  connLbl.textContent = 'RECONNECTING…';
+  connLbl.style.color = '';
+  ledWeb.style.background = '#44aaff';
+  ledWeb.style.boxShadow  = '0 0 6px 2px #44aaff88';
+  setTimeout(() => {
+    frame.src = ttydUrl + '?' + Date.now();
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      connLbl.textContent = 'CONNECTED';
+      connLbl.style.color = '#44ff44';
+    }, 2000);
+  }, 800);
+}
+
+function toggleFullscreen() {
+  const el = document.querySelector('.crt-screen');
+  if (!document.fullscreenElement) {
+    el.requestFullscreen && el.requestFullscreen();
+  } else {
+    document.exitFullscreen && document.exitFullscreen();
+  }
+}
+
+function showHelp() {
+  alert(
+    'PiDP-8/i Web Console\n' +
+    '═══════════════════════\n' +
+    'This window is a live terminal session on your PDP-8 simulation.\n\n' +
+    'Keys:\n' +
+    '  CTRL-A  — SimH escape (if using screen)\n' +
+    '  CTRL-C  — Interrupt current program\n' +
+    '  CTRL-E  — SimH halt\n\n' +
+    'Buttons:\n' +
+    '  RESET  — Reconnect terminal session\n' +
+    '  FULL   — Fullscreen CRT view\n\n' +
+    `Terminal backend: ${ttydUrl}`
+  );
+}
+
+// ────────────────────────────────────────────────────────────────
+// Clock in status bar
+// ────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('status-clock').textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ────────────────────────────────────────────────────────────────
+// Handleiding-modal
+// ────────────────────────────────────────────────────────────────
+const helpModal = document.getElementById('help-modal');
+document.getElementById('help-btn').addEventListener('click', () => helpModal.classList.add('open'));
+document.getElementById('help-close').addEventListener('click', () => helpModal.classList.remove('open'));
+helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.remove('open'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') helpModal.classList.remove('open'); });
+</script>
+</body>
+</html>
