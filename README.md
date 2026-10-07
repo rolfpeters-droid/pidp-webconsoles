@@ -23,7 +23,7 @@ Each directory has its own README with the specific architecture, dependencies, 
 
 | PiDP-10 | PiDP-11 |
 |---|---|
-| _coming soon_ | ![PiDP-11, 2.11BSD UNIX booted](docs/screenshots/pidp11.jpg) |
+| ![PiDP-10, ITS Knight TV](docs/screenshots/pidp10-knighttv.jpg) | ![PiDP-11, 2.11BSD UNIX booted](docs/screenshots/pidp11.jpg) |
 
 ## Shared design
 

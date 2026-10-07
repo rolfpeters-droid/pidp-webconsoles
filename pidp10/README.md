@@ -2,6 +2,10 @@
 
 FastAPI backend + xterm.js frontend for the PiDP-10 (KLH10-based emulation). Runs alongside the physical front panel, not instead of it.
 
+![PiDP-10 web console, Knight TV tab, showing the ITS "eye" logo](../docs/screenshots/pidp10-knighttv.jpg)
+
+![PiDP-10 web console, Console tab, ITS booted and logged in](../docs/screenshots/pidp10-console.jpg)
+
 ## What it does
 
 - **Operator console** over a WebSocket bridge to the existing telnet console port (default `1025`), with telnet IAC byte-stripping so raw control sequences don't leak into the terminal.
