@@ -1,5 +1,7 @@
 # PiDP-8/I Web Console additions
 
+![PiDP-8/I web console showing OS/8 booted from the boot-select bar](../docs/screenshots/pidp8i.jpg)
+
 The PiDP-8/I kit already ships with a web terminal (ttyd attached to the `pidp8i` screen session). This folder adds a small boot-select HTTP API and a status/boot-picker page on top of that — it does not replace the existing ttyd terminal.
 
 ## What it does
