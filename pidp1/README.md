@@ -1,5 +1,7 @@
 # PiDP-1 Web Console additions
 
+![PiDP-1 web console running the Snowflake demo on the Type 30 CRT](../docs/screenshots/pidp1.jpg)
+
 **Depends on Oscar Vermeulen's own PiDP-1 web kit software already being installed** — his Go server (`pdpsrv.go`) and front-end (`p7sim.js` for the Type 30 CRT WebGL point-stream display, `papertape.js`, `index.html`/"Control Panel" page). This folder does **not** redistribute that software; it adds a second, lighter console page plus a small READ IN helper service that sit alongside it.
 
 If you don't already have Oscar's PiDP-1 kit software running, start there first: [obsolescence.dev](https://obsolescence.dev/).

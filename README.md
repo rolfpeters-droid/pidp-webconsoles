@@ -19,7 +19,7 @@ Each directory has its own README with the specific architecture, dependencies, 
 
 | PiDP-1 | PiDP-8/I |
 |---|---|
-| _coming soon_ | _coming soon_ |
+| ![PiDP-1, Snowflake demo](docs/screenshots/pidp1.jpg) | _coming soon_ |
 
 | PiDP-10 | PiDP-11 |
 |---|---|
