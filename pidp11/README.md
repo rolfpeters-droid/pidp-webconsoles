@@ -2,6 +2,8 @@
 
 FastAPI backend + xterm.js frontend for the PiDP-11 (SimH-based emulation). Modeled on the PiDP-10 console in this repo. Runs alongside the physical front panel, not instead of it.
 
+![PiDP-11 web console showing 2.11BSD UNIX booted via the DZ-terminal tab](../docs/screenshots/pidp11.jpg)
+
 ## What it does
 
 - **Operator console** bridge: a pty attached to the same `screen -x pidp11` session the front panel driver uses, so boot messages, single-user prompts, and every supported OS show up in the browser exactly as they do on a serial terminal.

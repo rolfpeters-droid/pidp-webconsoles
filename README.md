@@ -15,6 +15,16 @@ Built by a home-lab PiDP owner (all four kits) who wanted browser access to each
 
 Each directory has its own README with the specific architecture, dependencies, and install notes for that machine.
 
+## Screenshots
+
+| PiDP-1 | PiDP-8/I |
+|---|---|
+| _coming soon_ | _coming soon_ |
+
+| PiDP-10 | PiDP-11 |
+|---|---|
+| _coming soon_ | ![PiDP-11, 2.11BSD UNIX booted](docs/screenshots/pidp11.jpg) |
+
 ## Shared design
 
 - **Panel and browser share one session.** None of these spin up a second, independent emulator instance — they attach to the same `screen`/telnet session the physical front panel already uses. Whatever you do from the browser, the panel sees too (and vice versa).
